@@ -12,6 +12,8 @@ object Opcodes{
   val lui    = "b0110111".U
   val auipc  = "b0010111".U
   val ecall  = "b1110011".U
+
+  val fadd_s = "b1010011".U
 }
 
 object ALUModes {

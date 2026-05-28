@@ -1,6 +1,9 @@
 import chisel3._
 import chisel3.util._
 
+import floatingPointUnit.Stages
+import floatingPointUnit.SinglePrecisionFloatingPointUnit
+
 class CPU extends Module {
   val io = IO(new Bundle {
     val inst = new Bus()
@@ -69,6 +72,12 @@ class CPU extends Module {
 
   val regVal1 = Mux(RegNext(exWriteBack) && (RegNext(rd) =/= 0.U) && (RegNext(rd) === rs1), aluResult, newReg(rs1))
   val regVal2 = Mux(RegNext(exWriteBack) && (RegNext(rd) =/= 0.U) && (RegNext(rd) === rs2), aluResult, newReg(rs2))
+  
+  // FPU signals
+  val fpuOperand1 = WireInit(UInt(32.W), DontCare)
+  val fpuOperand2 = WireInit(UInt(32.W), DontCare)
+  val fpuOperation = WireInit(UInt(2.W), DontCare)
+  val fpuWriteBack = WireDefault(false.B)
 
   switch (opcode) {
     is (Opcodes.add) {
@@ -131,6 +140,12 @@ class CPU extends Module {
       jumpAddress := regVal1 + I_imm
       useRs1 := true.B
       jump := true.B
+    }
+    is (Opcodes.fadd_s) {
+      fpuOperand1 := regVal1
+      fpuOperand2 := regVal2
+      fpuWriteBack := true.B
+      fpuOperation := funct7(3,2)
     }
   }
 
@@ -215,6 +230,17 @@ class CPU extends Module {
   io.data.writeHalf := RegNext(memStore) && (RegNext(funct3) === 1.U)
   io.data.writeWord := RegNext(memStore) && (RegNext(funct3) === 2.U)
 
+  val fpuStages = new Stages {
+    this.output = true
+    this.combiner = true
+    this.shortener = true
+  }
+  val fpu = Module(new SinglePrecisionFloatingPointUnit(fpuStages))
+  fpu.io.input1 := RegNext(fpuOperand1)
+  fpu.io.input2 := RegNext(fpuOperand2)
+  fpu.io.operation := RegNext(fpuOperation)
+  fpu.io.roundingMode := 0.U
+
   // Memory/Writeback
   val loadToMem = WireInit(UInt(32.W), DontCare)
   switch(RegNext(RegNext(funct3))){
@@ -241,6 +267,8 @@ class CPU extends Module {
       newReg(destination) := RegNext(aluResult)
     } .elsewhen (RegNext(RegNext(memWriteBack))) {
       newReg(destination) := loadToMem
+    } .elsewhen (RegNext(RegNext(RegNext(RegNext(fpuWriteBack))))) {
+      newReg(destination) := fpu.io.output
     }
   }
 }
