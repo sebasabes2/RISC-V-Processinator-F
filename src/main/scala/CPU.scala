@@ -162,7 +162,7 @@ class CPU extends Module {
       aluResult := operand1Reg << operand2Reg(5,0)
     }
     is (ALUModes.setLessThan){
-      aluResult := (operand1Reg.asSInt < operand2Reg.asSInt).asUInt()
+      aluResult := (operand1Reg.asSInt < operand2Reg.asSInt).asUInt
     }
     is (ALUModes.setLessThanU){
       aluResult := (operand1Reg < operand2Reg)
@@ -172,7 +172,7 @@ class CPU extends Module {
     }
     is (ALUModes.shiftRight){
       when (aluModeReg(3)) { //sra
-        aluResult := (operand1Reg.asSInt >> operand2Reg(4,0)).asUInt()
+        aluResult := (operand1Reg.asSInt >> operand2Reg(4,0)).asUInt
       } .otherwise { //srl
         aluResult := operand1Reg >> operand2Reg(4,0)
       }
