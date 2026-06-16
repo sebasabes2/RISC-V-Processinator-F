@@ -206,15 +206,15 @@ iterate:
 mv a6, ra
 
 # fixed to float and save input
-mv t0, a0
-mv t1, a1
-call fixedToFloat
-mv t0, a0
-mv a0, t1
-call fixedToFloat
-mv t1, a0
-mv a4, t0
-mv a5, t1
+mv a4, a0
+mv a5, a1
+call fixed_to_float
+mv a4, a0
+mv a0, a5
+call fixed_to_float
+mv a5, a0
+# mv a4, t0
+# mv a5, t1
 
 # initialize real, imag
 mv t0, a4
@@ -264,66 +264,29 @@ iterate_return2:
 mv ra, a6
 jalr x0, 0(ra)
 
-# fixed to float subroutine:
 fixed_to_float:
 li t0, 0 # sign = 0
-bgez a0, fixed_to_float_skip_negative
-sub a0, x0, a0
-li t0, 1 # sign = 1
-# todo set sign of floating point t0
-fixed_to_float_skip_negative:
-li t1, 145 # exponent = 18 (+127)
-mv t2, a0 # significand
-bnez t2, fixed_to_float_skip_zero
 li t1, 0 # exponent = 0
-j fixed_to_float_exit_loop
-fixed_to_float_skip_zero:
-li t3, 0x80000000
-fixed_to_float_loop:
-and t4, t2, t3
-bnez t4, fixed_to_float_exit_loop
-addi t1, t1, -1
-slli t2, t2, 1
-j fixed_to_float_loop
-fixed_to_float_exit_loop:
+mv t2, a0 # significand = 0
+bltz t2, fixed_to_float_negative
+bnez t2, fixed_to_float_non_zero
+fixed_to_float_return:
 slli t2, t2, 1
 srli t2, t2, 9
-# construct fp
-slli t0, t0, 31
 andi t1, t1, 0xff
 slli t1, t1, 23
-mv a0, t0
+slli t0, t0, 31
+mv a0, t2
 add a0, a0, t1
-add a0, a0, t2
+add a0, a0, t0
 ret
-
-# test
-fixedToFloat:
-	blt	a0,zero,.L8
-	mv	a5,a0
-	li	a4,1
-	bne	a0,zero,.L9
-.L4:
-	slli	a5,a5,1
-	slli	a4,a4,23
-	srli	a5,a5,9
-	li	a3,2139095040
-	and	a4,a4,a3
-	add	a5,a5,a4
-	slli	a0,a0,31
-	add	a0,a5,a0
-	ret
-.L8:
-	neg	a5,a0
-	li	a0,1
-.L3:
-	li	a4,145
-.L5:
-	addi	a4,a4,-1
-	slli	a5,a5,1
-	bge	a5,zero,.L5
-	j	.L4
-.L9:
-	li	a0,0
-	j	.L3
-# test end
+fixed_to_float_negative:
+sub t2, x0, t2 # significand = -significand
+li t0, 1 # sign = 1
+fixed_to_float_non_zero:
+li t1, 145 # exponent = 145
+fixed_to_float_loop:
+addi t1, t1, -1 # exponent = exponent - 1
+slli t2, t2, 1 # significand = significand << 1
+bgez t2, fixed_to_float_loop # repeat if MSB is not set
+j fixed_to_float_return
