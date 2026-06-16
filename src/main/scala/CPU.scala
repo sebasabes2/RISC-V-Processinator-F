@@ -77,6 +77,7 @@ class CPU extends Module {
   val fpuOperand1 = WireInit(UInt(32.W), DontCare)
   val fpuOperand2 = WireInit(UInt(32.W), DontCare)
   val fpuOperation = WireInit(UInt(2.W), DontCare)
+  val fpuRoundingMode = WireInit(UInt(3.W), DontCare)
   val fpuWriteBack = WireDefault(false.B)
   val fpuStallCounter = WireDefault(0.U(2.W))
   val fpuStallCounterReg = RegInit(0.U(2.W))
@@ -151,7 +152,8 @@ class CPU extends Module {
       fpuOperand2 := regVal2
       fpuWriteBack := true.B
       fpuOperation := funct7(3,2)
-      fpuStallCounter := 2.U
+      fpuRoundingMode := funct3
+      fpuStallCounter := 3.U
     }
   }
 
@@ -239,14 +241,14 @@ class CPU extends Module {
   io.data.writeWord := RegNext(memStore) && (RegNext(funct3) === 2.U)
 
   val fpuStages = new Stages {
-    this.combiner = true
+    this.selector = true
     this.shortener = true
   }
   val fpu = Module(new SinglePrecisionFloatingPointUnit(fpuStages))
   fpu.io.input1 := RegNext(fpuOperand1)
   fpu.io.input2 := RegNext(fpuOperand2)
   fpu.io.operation := RegNext(fpuOperation)
-  fpu.io.roundingMode := 0.U
+  fpu.io.roundingMode := RegNext(fpuRoundingMode)
   val fpuResult = RegNext(fpu.io.output)
 
   // Memory/Writeback
