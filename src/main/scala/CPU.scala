@@ -78,6 +78,11 @@ class CPU extends Module {
   val fpuOperand2 = WireInit(UInt(32.W), DontCare)
   val fpuOperation = WireInit(UInt(2.W), DontCare)
   val fpuWriteBack = WireDefault(false.B)
+  val fpuStallCounter = WireDefault(0.U(2.W))
+  val fpuStallCounterReg = RegInit(0.U(2.W))
+  val newFpuStallCounter = Mux(fpuStallCounterReg =/= 0.U, fpuStallCounterReg - 1.U, fpuStallCounter)
+  fpuStallCounterReg := newFpuStallCounter
+  val fpuStall = RegNext(newFpuStallCounter =/= 0.U)
 
   switch (opcode) {
     is (Opcodes.add) {
@@ -146,15 +151,18 @@ class CPU extends Module {
       fpuOperand2 := regVal2
       fpuWriteBack := true.B
       fpuOperation := funct7(3,2)
+      fpuStallCounter := 2.U
     }
   }
 
-  stall := RegNext(memWriteBack && (rd =/= 0.U)) && (((RegNext(rd) === rs1) && useRs1) || ((RegNext(rd) === rs2) && useRs2))
+  val aluStall = RegNext(memWriteBack && (rd =/= 0.U)) && (((RegNext(rd) === rs1) && useRs1) || ((RegNext(rd) === rs2) && useRs2))
+  stall := aluStall || fpuStall
 
   val flush = branch || stall || RegNext(reset.asBool)
   when (flush) {
     exWriteBack := false.B
     memWriteBack := false.B
+    fpuWriteBack := false.B
     memStore := false.B
     haveBranch := false.B
     jump := false.B
@@ -231,7 +239,6 @@ class CPU extends Module {
   io.data.writeWord := RegNext(memStore) && (RegNext(funct3) === 2.U)
 
   val fpuStages = new Stages {
-    this.output = true
     this.combiner = true
     this.shortener = true
   }
@@ -240,6 +247,7 @@ class CPU extends Module {
   fpu.io.input2 := RegNext(fpuOperand2)
   fpu.io.operation := RegNext(fpuOperation)
   fpu.io.roundingMode := 0.U
+  val fpuResult = RegNext(fpu.io.output)
 
   // Memory/Writeback
   val loadToMem = WireInit(UInt(32.W), DontCare)
@@ -262,13 +270,17 @@ class CPU extends Module {
   }
 
   val destination = RegNext(RegNext(rd))
-  when (destination =/= 0.U) {
-    when (RegNext(RegNext(exWriteBack))) {
+  when (RegNext(RegNext(exWriteBack))) {
+    when (destination =/= 0.U) {
       newReg(destination) := RegNext(aluResult)
-    } .elsewhen (RegNext(RegNext(memWriteBack))) {
+    }
+  } .elsewhen (RegNext(RegNext(memWriteBack))) {
+    when (destination =/= 0.U) {
       newReg(destination) := loadToMem
-    } .elsewhen (RegNext(RegNext(RegNext(RegNext(fpuWriteBack))))) {
-      newReg(destination) := fpu.io.output
+    }
+  } .elsewhen (RegNext(RegNext(RegNext(RegNext(fpuWriteBack))))) {
+    when (RegNext(RegNext(destination)) =/= 0.U) {
+      newReg(RegNext(RegNext(destination))) := fpuResult
     }
   }
 }
