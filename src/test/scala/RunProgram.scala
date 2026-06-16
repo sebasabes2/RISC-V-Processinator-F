@@ -10,7 +10,7 @@ object RunProgram {
     addr = dut.io.inst.addr.peekInt()
     index = addr / 4
     dut.clock.step(1)
-    dut.io.inst.readData.poke(program(index.intValue()))
+    dut.io.inst.readData.poke(program(index.intValue))
     dut.reset.poke(false.B)
     var i = 0
     while (true) {
@@ -23,7 +23,7 @@ object RunProgram {
         dut.clock.step(5)
         return
       }
-      dut.io.inst.readData.poke(program(index.intValue()))
+      dut.io.inst.readData.poke(program(index.intValue))
       // If program is stuck
       i = i + 1
       if (i >= 10000) {
